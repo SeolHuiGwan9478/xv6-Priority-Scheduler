@@ -325,29 +325,28 @@ void
 scheduler(void)
 {
   struct proc *p;
-  struct proc *tmp1;
-  struct proc *tmp2;
+  struct proc *hp = 0;
   struct cpu *c = mycpu();
 
   for(;;){
     // Enable interrupts on this processor.
-    sti();
-
     int ind = 0;
-    struct proc *hp = 0;
-    int complete_p[NPROC] = {0,};
+    int complete[NPROC] = {0, };
+    sti();
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
 
-      for(tmp1 = ptable.proc; tmp1 < &ptable.proc[NPROC]; tmp1++){
-	      int isexist = 0;
-	      if(tmp1->state != RUNNABLE)
+      int h_nice = 0;
+      for(hp = ptable.proc; hp < &ptable.proc[NPROC]; hp++){
+	      if(hp->state != RUNNABLE){
 		      continue;
+	      }
+	      int isexist = 0;
 	      for(int i = 0; i < ind; i++){
-		      if(complete_p[i] == tmp1->pid){
+		      if(complete[i] == hp->pid){
 			      isexist = 1;
 			      break;
 		      }
@@ -356,37 +355,18 @@ scheduler(void)
 		      continue;
 	      }
 	      else{
-		      hp = tmp1;
-		      break;
-	      }
-      }
-      for(tmp2 = ptable.proc; tmp2 < &ptable.proc[NPROC]; tmp2++){
-	      int isexist = 0;
-	      if(tmp2->state != RUNNABLE)
-		      continue;
-	      if(hp->nice < tmp2->nice){
-		      for(int i = 0; i < ind; i++){
-			      if(complete_p[i] == tmp2->pid){
-				      isexist = 1;
-				      break;
-			      }
-		      }
-		      if(isexist){
-			      continue;
-		      }
-		      else{
-			      hp = tmp2;
+		      if(hp->nice > h_nice){
+			      p = hp;
+			      h_nice = hp->nice;
 		      }
 	      }
       }
-
+      complete[ind] = p->pid;
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      p = hp;
-      complete_p[ind] = p->pid;
-      p->timeslice = p->nice;
       c->proc = p;
+      p->timeslice = p->nice;
       switchuvm(p);
       p->state = RUNNING;
 
